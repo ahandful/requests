@@ -3,8 +3,6 @@
 Quickstart
 ==========
 
-.. image:: https://farm5.staticflickr.com/4259/35163667010_8bfcaef274_k_d.jpg
-
 .. module:: requests.models
 
 Eager to get started? This page gives a good introduction in how to get started
@@ -93,7 +91,7 @@ again::
 
     >>> r = requests.get('https://api.github.com/events')
     >>> r.text
-    u'[{"repository":{"open_issues":0,"url":"https://github.com/...
+    '[{"repository":{"open_issues":0,"url":"https://github.com/...
 
 Requests will automatically decode content from the server. Most unicode
 charsets are seamlessly decoded.
@@ -148,7 +146,7 @@ There's also a builtin JSON decoder, in case you're dealing with JSON data::
 
     >>> r = requests.get('https://api.github.com/events')
     >>> r.json()
-    [{u'repository': {u'open_issues': 0, u'url': 'https://github.com/...
+    [{'repository': {'open_issues': 0, 'url': 'https://github.com/...
 
 In case the JSON decoding fails, ``r.json()`` raises an exception. For example, if
 the response gets a 204 (No Content), or if the response contains invalid JSON,
@@ -215,7 +213,8 @@ Note: Custom headers are given less precedence than more specific sources of inf
 
 * Authorization headers set with `headers=` will be overridden if credentials
   are specified in ``.netrc``, which in turn will be overridden by the  ``auth=``
-  parameter.
+  parameter. Requests will search for the netrc file at `~/.netrc`, `~/_netrc`,
+  or at the path specified by the `NETRC` environment variable.
 * Authorization headers will be removed if you get redirected off-host.
 * Proxy-Authorization headers will be overridden by proxy credentials provided in the URL.
 * Content-Length headers will be overridden when we can determine the length of the content.
@@ -560,3 +559,6 @@ All exceptions that Requests explicitly raises inherit from
 -----------------------
 
 Ready for more? Check out the :ref:`advanced <advanced>` section.
+
+
+If you're on the job market, consider taking `this programming quiz <https://triplebyte.com/a/b1i2FB8/requests-docs-1>`_. A substantial donation will be made to this project, if you find a job through this platform.

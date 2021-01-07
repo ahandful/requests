@@ -3,8 +3,6 @@
 Advanced Usage
 ==============
 
-.. image:: https://farm5.staticflickr.com/4263/35163665790_d182d84f5e_k_d.jpg
-
 This document covers some of Requests more advanced features.
 
 .. _session-objects:
@@ -193,7 +191,7 @@ When you are using the prepared request flow, keep in mind that it does not take
 This can cause problems if you are using environment variables to change the behaviour of requests.
 For example: Self-signed SSL certificates specified in ``REQUESTS_CA_BUNDLE`` will not be taken into account.
 As a result an ``SSL: CERTIFICATE_VERIFY_FAILED`` is thrown.
-You can get around this behaviour by explicity merging the environment settings into your session::
+You can get around this behaviour by explicitly merging the environment settings into your session::
 
     from requests import Request, Session
 
@@ -203,7 +201,7 @@ You can get around this behaviour by explicity merging the environment settings 
     prepped = s.prepare_request(req)
 
     # Merge environment settings into session
-    settings = s.merge_environment_settings(prepped.url, None, None, None, None)
+    settings = s.merge_environment_settings(prepped.url, {}, None, None, None)
     resp = s.send(prepped, **settings)
 
     print(resp.status_code)
@@ -238,11 +236,18 @@ or persistent::
   the c_rehash utility supplied with OpenSSL.
 
 This list of trusted CAs can also be specified through the ``REQUESTS_CA_BUNDLE`` environment variable.
+If ``REQUESTS_CA_BUNDLE`` is not set, ``CURL_CA_BUNDLE`` will be used as fallback.
 
 Requests can also ignore verifying the SSL certificate if you set ``verify`` to False::
 
     >>> requests.get('https://kennethreitz.org', verify=False)
     <Response [200]>
+
+Note that when ``verify`` is set to ``False``, requests will accept any TLS
+certificate presented by the server, and will ignore hostname mismatches
+and/or expired certificates, which will make your application vulnerable to
+man-in-the-middle (MitM) attacks. Setting verify to ``False`` may be useful
+during local development or testing.
 
 By default, ``verify`` is set to True. Option ``verify`` only applies to host certs.
 
@@ -300,7 +305,7 @@ immediately. You can override this behaviour and defer downloading the response
 body until you access the :attr:`Response.content <requests.Response.content>`
 attribute with the ``stream`` parameter::
 
-    tarball_url = 'https://github.com/requests/requests/tarball/master'
+    tarball_url = 'https://github.com/psf/requests/tarball/master'
     r = requests.get(tarball_url, stream=True)
 
 At this point only the response headers have been downloaded and the connection
@@ -395,8 +400,8 @@ To do that, just set files to a list of tuples of ``(form_field_name, file_info)
 
     >>> url = 'https://httpbin.org/post'
     >>> multiple_files = [
-            ('images', ('foo.png', open('foo.png', 'rb'), 'image/png')),
-            ('images', ('bar.png', open('bar.png', 'rb'), 'image/png'))]
+    ...     ('images', ('foo.png', open('foo.png', 'rb'), 'image/png')),
+    ...     ('images', ('bar.png', open('bar.png', 'rb'), 'image/png'))]
     >>> r = requests.post(url, files=multiple_files)
     >>> r.text
     {
@@ -482,7 +487,7 @@ they are added.
 Custom Authentication
 ---------------------
 
-Requests allows you to use specify your own authentication mechanism.
+Requests allows you to specify your own authentication mechanism.
 
 Any callable which is passed as the ``auth`` argument to a request method will
 have the opportunity to modify the request before it is dispatched.
@@ -584,10 +589,26 @@ If you need to use a proxy, you can configure individual requests with the
 
     requests.get('http://example.org', proxies=proxies)
 
-You can also configure proxies by setting the environment variables
-``HTTP_PROXY`` and ``HTTPS_PROXY``.
+Alternatively you can configure it once for an entire
+:class:`Session <requests.Session>`::
 
-::
+    import requests
+
+    proxies = {
+      'http': 'http://10.10.1.10:3128',
+      'https': 'http://10.10.1.10:1080',
+    }
+    session = request.Session()
+    session.proxies.update(proxies)
+
+    session.get('http://example.org')
+
+When the proxies configuration is not overridden in python as shown above,
+by default Requests relies on the proxy configuration defined by standard
+environment variables ``http_proxy``, ``https_proxy``, ``no_proxy`` and
+``curl_ca_bundle``. Uppercase variants of these variables are also supported.
+You can therefore set them to configure Requests (only set the ones relevant
+to your needs)::
 
     $ export HTTP_PROXY="http://10.10.1.10:3128"
     $ export HTTPS_PROXY="http://10.10.1.10:1080"
@@ -596,9 +617,17 @@ You can also configure proxies by setting the environment variables
     >>> import requests
     >>> requests.get('http://example.org')
 
-To use HTTP Basic Auth with your proxy, use the `http://user:password@host/` syntax::
+To use HTTP Basic Auth with your proxy, use the `http://user:password@host/`
+syntax in any of the above configuration entries::
 
-    proxies = {'http': 'http://user:pass@10.10.1.10:3128/'}
+    $ export HTTPS_PROXY="http://user:pass@10.10.1.10:1080"
+
+    $ python
+    >>> proxies = {'http': 'http://user:pass@10.10.1.10:3128/'}
+
+.. warning:: Storing sensitive username and password information in an
+   environment variable or a version-controled file is a security risk and is
+   highly discouraged.
 
 To give a proxy for a specific scheme and host, use the
 `scheme://hostname` form for the key.  This will match for
@@ -609,6 +638,23 @@ any request to the given scheme and exact hostname.
     proxies = {'http://10.20.1.128': 'http://10.10.1.10:5323'}
 
 Note that proxy URLs must include the scheme.
+
+Finally, note that using a proxy for https connections typically requires your
+local machine to trust the proxy's root certificate. By default the list of
+certificates trusted by Requests can be found with::
+
+    from requests.utils import DEFAULT_CA_BUNDLE_PATH
+    print(DEFAULT_CA_BUNDLE_PATH)
+
+You override this default certificate bundle by setting the standard
+``curl_ca_bundle`` environment variable to another file path::
+
+    $ export curl_ca_bundle="/usr/local/myproxy_info/cacert.pem"
+    $ export https_proxy="http://10.10.1.10:1080"
+
+    $ python
+    >>> import requests
+    >>> requests.get('https://example.org')
 
 SOCKS
 ^^^^^
@@ -623,7 +669,7 @@ You can get the dependencies for this feature from ``pip``:
 
 .. code-block:: bash
 
-    $ pip install requests[socks]
+    $ python -m pip install requests[socks]
 
 Once you've installed those dependencies, using a SOCKS proxy is just as easy
 as using a HTTP one::
@@ -680,7 +726,7 @@ from GitHub. Suppose we wanted commit ``a050faf`` on Requests. We would get it
 like so::
 
     >>> import requests
-    >>> r = requests.get('https://api.github.com/repos/requests/requests/git/commits/a050faf084662f3a352dd1a941f2c7c9f886d4ad')
+    >>> r = requests.get('https://api.github.com/repos/psf/requests/git/commits/a050faf084662f3a352dd1a941f2c7c9f886d4ad')
 
 We should confirm that GitHub responded correctly. If it has, we want to work
 out what type of content it is. Do this like so::
@@ -698,12 +744,12 @@ So, GitHub returns JSON. That's great, we can use the :meth:`r.json
     >>> commit_data = r.json()
 
     >>> print(commit_data.keys())
-    [u'committer', u'author', u'url', u'tree', u'sha', u'parents', u'message']
+    ['committer', 'author', 'url', 'tree', 'sha', 'parents', 'message']
 
-    >>> print(commit_data[u'committer'])
-    {u'date': u'2012-05-10T11:10:50-07:00', u'email': u'me@kennethreitz.com', u'name': u'Kenneth Reitz'}
+    >>> print(commit_data['committer'])
+    {'date': '2012-05-10T11:10:50-07:00', 'email': 'me@kennethreitz.com', 'name': 'Kenneth Reitz'}
 
-    >>> print(commit_data[u'message'])
+    >>> print(commit_data['message'])
     makin' history
 
 So far, so simple. Well, let's investigate the GitHub API a little bit. Now,
@@ -735,37 +781,37 @@ we should probably avoid making ham-handed POSTS to it. Instead, let's play
 with the Issues feature of GitHub.
 
 This documentation was added in response to
-`Issue #482 <https://github.com/requests/requests/issues/482>`_. Given that
+`Issue #482 <https://github.com/psf/requests/issues/482>`_. Given that
 this issue already exists, we will use it as an example. Let's start by getting it.
 
 ::
 
-    >>> r = requests.get('https://api.github.com/repos/requests/requests/issues/482')
+    >>> r = requests.get('https://api.github.com/repos/psf/requests/issues/482')
     >>> r.status_code
     200
 
     >>> issue = json.loads(r.text)
 
-    >>> print(issue[u'title'])
+    >>> print(issue['title'])
     Feature any http verb in docs
 
-    >>> print(issue[u'comments'])
+    >>> print(issue['comments'])
     3
 
 Cool, we have three comments. Let's take a look at the last of them.
 
 ::
 
-    >>> r = requests.get(r.url + u'/comments')
+    >>> r = requests.get(r.url + '/comments')
     >>> r.status_code
     200
 
     >>> comments = r.json()
 
     >>> print(comments[0].keys())
-    [u'body', u'url', u'created_at', u'updated_at', u'user', u'id']
+    ['body', 'url', 'created_at', 'updated_at', 'user', 'id']
 
-    >>> print(comments[2][u'body'])
+    >>> print(comments[2]['body'])
     Probably in the "advanced" section
 
 Well, that seems like a silly place. Let's post a comment telling the poster
@@ -773,7 +819,7 @@ that he's silly. Who is the poster, anyway?
 
 ::
 
-    >>> print(comments[2][u'user'][u'login'])
+    >>> print(comments[2]['user']['login'])
     kennethreitz
 
 OK, so let's tell this Kenneth guy that we think this example should go in the
@@ -783,7 +829,7 @@ is to POST to the thread. Let's do it.
 ::
 
     >>> body = json.dumps({u"body": u"Sounds great! I'll get right on it!"})
-    >>> url = u"https://api.github.com/repos/requests/requests/issues/482/comments"
+    >>> url = u"https://api.github.com/repos/psf/requests/issues/482/comments"
 
     >>> r = requests.post(url=url, data=body)
     >>> r.status_code
@@ -803,7 +849,7 @@ the very common Basic Auth.
     201
 
     >>> content = r.json()
-    >>> print(content[u'body'])
+    >>> print(content['body'])
     Sounds great! I'll get right on it.
 
 Brilliant. Oh, wait, no! I meant to add that it would take me a while, because
@@ -817,7 +863,7 @@ that.
     5804413
 
     >>> body = json.dumps({u"body": u"Sounds great! I'll get right on it once I feed my cat."})
-    >>> url = u"https://api.github.com/repos/requests/requests/issues/comments/5804413"
+    >>> url = u"https://api.github.com/repos/psf/requests/issues/comments/5804413"
 
     >>> r = requests.patch(url=url, data=body, auth=auth)
     >>> r.status_code
@@ -976,11 +1022,12 @@ response at a time. However, these calls will still block.
 
 If you are concerned about the use of blocking IO, there are lots of projects
 out there that combine Requests with one of Python's asynchronicity frameworks.
-Some excellent examples are `requests-threads`_, `grequests`_,  and `requests-futures`_.
+Some excellent examples are `requests-threads`_, `grequests`_, `requests-futures`_, and `httpx`_.
 
 .. _`requests-threads`: https://github.com/requests/requests-threads
 .. _`grequests`: https://github.com/kennethreitz/grequests
 .. _`requests-futures`: https://github.com/ross/requests-futures
+.. _`httpx`: https://github.com/encode/httpx
 
 Header Ordering
 ---------------
